@@ -8,6 +8,8 @@
 #include <string.h>
 #include <poll.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <chrono>
 
 #include <linux/input-event-codes.h>
 
@@ -222,6 +224,11 @@ static void wlserver_handle_key(struct wl_listener *listener, void *data)
 	struct wlserver_keyboard *keyboard = wl_container_of( listener, keyboard, key );
 	struct wlr_keyboard_key_event *event = (struct wlr_keyboard_key_event *) data;
 
+	typedef std::chrono::high_resolution_clock Time;
+	typedef std::chrono::duration<float> Duration;
+
+	static auto start = Time::now();
+
 	xkb_keycode_t keycode = event->keycode + 8;
 	xkb_keysym_t keysym = xkb_state_key_get_one_sym(keyboard->wlr->xkb_state, keycode);
 
@@ -229,6 +236,18 @@ static void wlserver_handle_key(struct wl_listener *listener, void *data)
 		unsigned vt = keysym - XKB_KEY_XF86Switch_VT_1 + 1;
 		wlr_session_change_vt(wlserver.wlr.session, vt);
 		return;
+	}
+
+	auto now = Time::now();
+	Duration seconds = now - start;
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && keysym == XKB_KEY_XF86AudioLowerVolume && seconds.count() > 0.25) {
+		start = now;
+		system("hwctl audio lower-volume &");
+	}
+
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && keysym == XKB_KEY_XF86AudioRaiseVolume && seconds.count() > 0.25) {
+		start = now;
+		system("hwctl audio raise-volume &");
 	}
 
 	bool forbidden_key =
